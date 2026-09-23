@@ -1,11 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { CompanyLayout } from '../layouts/CompanyLayout';
-import { SuperAdminLayout } from '../layouts/SuperAdminLayout'; // <--- 1. Importa tu layout de Super Admin
+import { SuperAdminLayout } from '../layouts/SuperAdminLayout';
 import { BusManagement } from '../pages/company/BusManagement';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { AcceptInvitationPage } from '../pages/auth/AcceptInvitationPage'; // <--- 1. Importado aquí
 import { SuperAdminDashboard } from '../pages/admin/SuperAdminDashboard';
 import { InvitationsPage } from '../pages/admin/InvitationsPage';
+import { ProtectedRoute } from './ProtectedRoute'; // <--- 2. Importado desde su propio archivo
 import { authService } from '../services/authService';
 
 /**
@@ -14,39 +16,8 @@ import { authService } from '../services/authService';
 const CompanyDashboard = () => <div className="p-8"><h2 className="text-xl font-semibold">Resumen de KPIs y Estadísticas</h2></div>;
 
 /**
- * Interface para las propiedades del componente ProtectedRoute.
- */
-interface ProtectedRouteProps {
-    children: React.ReactNode;
-    allowedRole: string;
-}
-
-/**
- * ProtectedRoute: Componente de orden superior (Route Guard) encargado de interceptar
- * las peticiones a rutas privadas, validando la existencia de un token JWT válido
- * y asegurando que el rol almacenado coincida con el requerido para el acceso.
- */
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRole }) => {
-    const token = authService.getToken();
-    const userRole = localStorage.getItem('userRole');
-
-    // Validación 1: Si no hay token de sesión, redirige al login
-    if (!token) {
-        return <Navigate to="/login" replace />;
-    }
-
-    // Validación 2: Si el rol del usuario no coincide con el permitido, bloquea el acceso
-    if (allowedRole && userRole !== allowedRole) {
-        return <Navigate to="/login" replace />;
-    }
-
-    return <>{children}</>;
-};
-
-/**
  * AppRoutes: Centraliza y gestiona el enrutamiento principal de la aplicación frontend,
- * separando las rutas públicas de autenticación y aplicando protección por roles 
- * (SUPER_ADMIN y COMPANY_ADMIN) mediante el componente ProtectedRoute.
+ * separando las rutas públicas de autenticación y aplicando protección por roles.
  */
 export const AppRoutes: React.FC = () => {
     const token = authService.getToken();
@@ -60,6 +31,7 @@ export const AppRoutes: React.FC = () => {
                 {/* Rutas Públicas                                                   */}
                 {/* ----------------------------------------------------------------- */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/accept-invitation" element={<AcceptInvitationPage />} /> {/* <--- 3. Ruta pública de invitación */}
 
                 {/* ----------------------------------------------------------------- */}
                 {/* Rutas Protegidas: Super Administrador (SUPER_ADMIN)               */}
@@ -76,7 +48,7 @@ export const AppRoutes: React.FC = () => {
                 </Route>
 
                 {/* ----------------------------------------------------------------- */}
-                {/* Rutas Protegidas: Administrador de Compañía (COMPANY_ADMIN)       */}
+                {/* Rutas Protegidas: Administrador de Compañía (COMPANY_ADMIN)      */}
                 {/* ----------------------------------------------------------------- */}
                 <Route
                     element={

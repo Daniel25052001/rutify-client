@@ -4,18 +4,19 @@ import { useNavigate } from 'react-router-dom';
 
 /**
  * InvitationsPage: Vista administrativa exclusiva para Super Administradores.
- * Permite listar las invitaciones existentes en el sistema y enviar nuevas 
- * invitaciones asociadas a una compañía y un rol específico.
+ * Permite listar las invitaciones existentes en el sistema, enviar nuevas 
+ * invitaciones asociadas a una compañía y un rol específico, y revocar las vigentes.
  */
 export const InvitationsPage: React.FC = () => {
     // --- ESTADOS LOCALES DEL COMPONENTE ---
     const [invitations, setInvitations] = useState<any[]>([]); // Almacena la lista de invitaciones obtenidas del backend
-    const [email, setEmail] = useState('');                   // Captura el correo del usuario a invitar
-    const [companyId, setCompanyId] = useState('');           // Captura el UUID de la compañía destino
+    const [email, setEmail] = useState('');                    // Captura el correo del usuario a invitar
+    const [companyId, setCompanyId] = useState('');            // Captura el UUID de la compañía destino
     const [role, setRole] = useState<'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'DRIVER'>('DRIVER'); // Rol asignado por defecto
-    const [error, setError] = useState<string | null>(null);  // Manejo de mensajes de error visuales
-    const [successMessage, setSuccessMessage] = useState<string | null>(null); // Mensaje de éxito al crear invitación
-    const [loading, setLoading] = useState(false);            // Estado de carga para bloquear botones durante peticiones
+    const [error, setError] = useState<string | null>(null);   // Manejo de mensajes de error visuales
+    const [successMessage, setSuccessMessage] = useState<string | null>(null); // Mensaje de éxito en operaciones
+    const [loading, setLoading] = useState(false);             // Estado de carga para bloquear botones durante peticiones
+    const [generatedTokenUrl, setGeneratedTokenUrl] = useState<string | null>(null); // Permite ver el enlace generado en pantalla
 
     const navigate = useNavigate();
 
@@ -46,19 +47,47 @@ export const InvitationsPage: React.FC = () => {
         e.preventDefault();
         setError(null);
         setSuccessMessage(null);
+        setGeneratedTokenUrl(null);
         setLoading(true);
-
         try {
-            await invitationService.createInvitation({ email, companyId, role });
+            // Hacemos el cast a 'any' para que TypeScript no restringa la propiedad token que devuelve el backend
+            const response: any = await invitationService.createInvitation({ email, companyId, role });
             setSuccessMessage('¡Invitación creada y enviada con éxito!');
-            setEmail('');      // Limpiamos el campo de correo
-            setCompanyId('');  // Limpiamos el campo de compañía
-            fetchInvitations();// Recargamos la tabla para mostrar la nueva invitación
+
+            if (response && response.invitationToken) {
+                const inviteUrl = `${window.location.origin}/accept-invitation?token=${response.invitationToken}`;
+                setGeneratedTokenUrl(inviteUrl);
+            }
+
+            setEmail('');
+            setCompanyId('');
+            fetchInvitations();
         } catch (err: any) {
-            // Capturamos el mensaje de error personalizado devuelto por el backend (ej. 400 o 404)
             setError(err.response?.data?.message || 'Error al procesar la invitación.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    /**
+     * handleRevoke: Permite dar de baja una invitación activa mediante su identificador único.
+     * Solicita confirmación previa al administrador antes de ejecutar la acción.
+     * 
+     * @param id - UUID de la invitación que se desea revocar.
+     */
+    const handleRevoke = async (id: string) => {
+        if (!window.confirm('¿Estás seguro de que deseas revocar esta invitación?')) return;
+
+        setError(null);
+        setSuccessMessage(null);
+        setGeneratedTokenUrl(null);
+
+        try {
+            await invitationService.revokeInvitation(id);
+            setSuccessMessage('Invitación revocada exitosamente.');
+            fetchInvitations(); // Recargamos la tabla para reflejar el cambio de estado
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'No se pudo revocar la invitación.');
         }
     };
 
@@ -84,6 +113,19 @@ export const InvitationsPage: React.FC = () => {
                 {/* BLOQUE DE ALERTAS: Muestra retroalimentación visual de éxito o error */}
                 {error && <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-medium">{error}</div>}
                 {successMessage && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-sm font-medium">{successMessage}</div>}
+
+                {/* CAJA INFORMATIVA DE ENLACE GENERADO (Útil para pruebas locales) */}
+                {generatedTokenUrl && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wider text-blue-800">Enlace de invitación generado (Cópialo para probar):</p>
+                        <input
+                            type="text"
+                            readOnly
+                            value={generatedTokenUrl}
+                            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg text-xs font-mono text-slate-700 select-all focus:outline-none"
+                        />
+                    </div>
+                )}
 
                 {/* FORMULARIO DE CREACIÓN: Inputs organizados en una cuadrícula responsiva */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -122,7 +164,7 @@ export const InvitationsPage: React.FC = () => {
                             <select
                                 value={role}
                                 onChange={(e) => setRole(e.target.value as any)}
-                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                             >
                                 <option value="DRIVER">DRIVER</option>
                                 <option value="COMPANY_ADMIN">COMPANY_ADMIN</option>
@@ -143,7 +185,7 @@ export const InvitationsPage: React.FC = () => {
                     </form>
                 </div>
 
-                {/* TABLA DE REGISTROS: Muestra el historial actual de invitaciones */}
+                {/* TABLA DE REGISTROS: Muestra el historial actual de invitaciones y opciones de gestión */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="p-6 border-b border-slate-100">
                         <h2 className="text-lg font-bold text-slate-800">Historial de Invitaciones</h2>
@@ -157,29 +199,57 @@ export const InvitationsPage: React.FC = () => {
                                     <th className="p-4">ID de Compañía</th>
                                     <th className="p-4">Rol Asignado</th>
                                     <th className="p-4">Estado</th>
+                                    <th className="p-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                                 {invitations.length > 0 ? (
-                                    invitations.map((inv, index) => (
-                                        <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-4 font-medium text-slate-900">{inv.email}</td>
-                                            <td className="p-4 font-mono text-xs text-slate-400">{inv.companyId}</td>
-                                            <td className="p-4">
-                                                <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-xs font-bold">
-                                                    {inv.role}
-                                                </span>
-                                            </td>
-                                            <td className="p-4">
-                                                <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-bold">
-                                                    Pendiente
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    invitations.map((inv) => {
+                                        // Validación basada en la propiedad real del esquema (acceptedAt) y fecha de expiración
+                                        const isAccepted = !!inv.acceptedAt;
+                                        const isExpired = new Date() > new Date(inv.expiresAt);
+
+                                        return (
+                                            <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="p-4 font-medium text-slate-900">{inv.email}</td>
+                                                <td className="p-4 font-mono text-xs text-slate-400">{inv.companyId}</td>
+                                                <td className="p-4">
+                                                    <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-xs font-bold">
+                                                        {inv.role}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4">
+                                                    {isAccepted ? (
+                                                        <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-bold">
+                                                            Utilizada
+                                                        </span>
+                                                    ) : isExpired ? (
+                                                        <span className="px-3 py-1 bg-red-50 text-red-700 border border-red-100 rounded-full text-xs font-bold">
+                                                            Expirada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-bold">
+                                                            Pendiente
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    {/* Se muestra el botón de revocar únicamente si la invitación no ha sido utilizada ni expirado */}
+                                                    {!isAccepted && !isExpired && (
+                                                        <button
+                                                            onClick={() => handleRevoke(inv.id)}
+                                                            className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-semibold transition-colors"
+                                                        >
+                                                            Revocar
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 ) : (
                                     <tr>
-                                        <td colSpan={4} className="p-8 text-center text-slate-400 font-medium">
+                                        <td colSpan={5} className="p-8 text-center text-slate-400 font-medium">
                                             No se encontraron invitaciones registradas.
                                         </td>
                                     </tr>

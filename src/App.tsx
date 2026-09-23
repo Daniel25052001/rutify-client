@@ -4,6 +4,7 @@ import { CompanyLayout } from './layouts/CompanyLayout';
 import { SuperAdminLayout } from './layouts/SuperAdminLayout';
 import { BusManagement } from './pages/company/BusManagement';
 import { LoginPage } from './pages/auth/LoginPage';
+import { AcceptInvitationPage } from './pages/auth/AcceptInvitationPage'; // 👈 1. Importar la página de aceptación
 import { SuperAdminDashboard } from './pages/admin/SuperAdminDashboard';
 import { InvitationsPage } from './pages/admin/InvitationsPage';
 import { authService } from './services/authService';
@@ -52,8 +53,9 @@ export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 1. Ruta Pública de Autenticación */}
+        {/* 1. Rutas Públicas de Autenticación y Registro */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} /> {/* 👈 2. Registrar la ruta pública */}
 
         {/* 2. Rutas Protegidas: Super Administrador (Usan SuperAdminLayout automáticamente) */}
         <Route
