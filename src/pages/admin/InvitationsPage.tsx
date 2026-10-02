@@ -3,13 +3,23 @@ import { invitationService } from '../../services/invitationService';
 import { useNavigate } from 'react-router-dom';
 
 /**
+ * ============================================================================
+ * SECCIÓN 1: COMPONENTE PRINCIPAL E INTERFACES
+ * ============================================================================
  * InvitationsPage: Vista administrativa exclusiva para Super Administradores.
- * Permite listar las invitaciones existentes en el sistema, enviar nuevas 
- * invitaciones asociadas a una compañía y un rol específico, y revocar las vigentes.
+ * Permite listar las invitaciones existentes en el sistema mediante paginación,
+ * enviar nuevas invitaciones asociadas a una compañía y un rol específico, y
+ * revocar las vigentes.
  */
 export const InvitationsPage: React.FC = () => {
-    // --- ESTADOS LOCALES DEL COMPONENTE ---
+
+    /**
+     * ============================================================================
+     * SECCIÓN 2: ESTADOS LOCALES
+     * ============================================================================
+     */
     const [invitations, setInvitations] = useState<any[]>([]); // Almacena la lista de invitaciones obtenidas del backend
+    const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 }); // Control de paginación y metadatos
     const [email, setEmail] = useState('');                    // Captura el correo del usuario a invitar
     const [companyId, setCompanyId] = useState('');            // Captura el UUID de la compañía destino
     const [role, setRole] = useState<'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'DRIVER'>('DRIVER'); // Rol asignado por defecto
@@ -20,27 +30,40 @@ export const InvitationsPage: React.FC = () => {
 
     const navigate = useNavigate();
 
-    // --- CICLO DE VIDA (useEffect) ---
-    // Se ejecuta automáticamente al montar el componente para cargar la lista inicial de invitaciones
+    /**
+     * ============================================================================
+     * SECCIÓN 3: CICLO DE VIDA (EFFECTS)
+     * ============================================================================
+     * Se ejecuta al montar el componente o cada vez que cambia la página actual.
+     */
     useEffect(() => {
-        fetchInvitations();
-    }, []);
+        fetchInvitations(meta.page);
+    }, [meta.page]);
 
     /**
-     * fetchInvitations: Obtiene el listado completo de invitaciones desde el backend
+     * ============================================================================
+     * SECCIÓN 4: FUNCIONES DE SERVICIO Y LÓGICA DE NEGOCIO
+     * ============================================================================
+     */
+
+    /**
+     * Obtiene el listado paginado de invitaciones desde el backend
      * utilizando el servicio protegido con token JWT.
      */
-    const fetchInvitations = async () => {
+    const fetchInvitations = async (page: number = 1) => {
         try {
-            const data = await invitationService.getInvitations();
-            setInvitations(data);
+            const response: any = await invitationService.getInvitations(page, 10);
+            setInvitations(response.data);
+            if (response.meta) {
+                setMeta(response.meta);
+            }
         } catch (err) {
             setError('No se pudieron cargar las invitaciones.');
         }
     };
 
     /**
-     * handleInviteSubmit: Controla el envío del formulario para registrar una nueva invitación.
+     * Controla el envío del formulario para registrar una nueva invitación.
      * Envía los datos al backend y actualiza la tabla automáticamente si es exitoso.
      */
     const handleInviteSubmit = async (e: React.FormEvent) => {
@@ -50,7 +73,6 @@ export const InvitationsPage: React.FC = () => {
         setGeneratedTokenUrl(null);
         setLoading(true);
         try {
-            // Hacemos el cast a 'any' para que TypeScript no restringa la propiedad token que devuelve el backend
             const response: any = await invitationService.createInvitation({ email, companyId, role });
             setSuccessMessage('¡Invitación creada y enviada con éxito!');
 
@@ -61,7 +83,7 @@ export const InvitationsPage: React.FC = () => {
 
             setEmail('');
             setCompanyId('');
-            fetchInvitations();
+            fetchInvitations(meta.page);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Error al procesar la invitación.');
         } finally {
@@ -70,10 +92,8 @@ export const InvitationsPage: React.FC = () => {
     };
 
     /**
-     * handleRevoke: Permite dar de baja una invitación activa mediante su identificador único.
+     * Permite dar de baja una invitación activa mediante su identificador único.
      * Solicita confirmación previa al administrador antes de ejecutar la acción.
-     * 
-     * @param id - UUID de la invitación que se desea revocar.
      */
     const handleRevoke = async (id: string) => {
         if (!window.confirm('¿Estás seguro de que deseas revocar esta invitación?')) return;
@@ -85,18 +105,22 @@ export const InvitationsPage: React.FC = () => {
         try {
             await invitationService.revokeInvitation(id);
             setSuccessMessage('Invitación revocada exitosamente.');
-            fetchInvitations(); // Recargamos la tabla para reflejar el cambio de estado
+            fetchInvitations(meta.page); // Recargamos la tabla para reflejar el cambio de estado
         } catch (err: any) {
             setError(err.response?.data?.message || 'No se pudo revocar la invitación.');
         }
     };
 
+    /**
+     * ============================================================================
+     * SECCIÓN 5: RENDERIZADO DE LA VISTA (JSX)
+     * ============================================================================
+     */
     return (
-        // CONTENEDOR PRINCIPAL: Fondo gris claro, altura mínima de pantalla y espaciado general
         <div className="min-h-screen bg-slate-100 p-8">
             <div className="max-w-6xl mx-auto space-y-6">
 
-                {/* SECCIÓN DE CABECERA: Título descriptivo y botón de navegación de retorno */}
+                {/* --- SUBSECCIÓN: CABECERA Y NAVEGACIÓN --- */}
                 <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Gestión de Invitaciones</h1>
@@ -110,11 +134,11 @@ export const InvitationsPage: React.FC = () => {
                     </button>
                 </div>
 
-                {/* BLOQUE DE ALERTAS: Muestra retroalimentación visual de éxito o error */}
+                {/* --- SUBSECCIÓN: BLOQUE DE ALERTAS Y NOTIFICACIONES --- */}
                 {error && <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-medium">{error}</div>}
                 {successMessage && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-sm font-medium">{successMessage}</div>}
 
-                {/* CAJA INFORMATIVA DE ENLACE GENERADO (Útil para pruebas locales) */}
+                {/* --- SUBSECCIÓN: ENLACE DE INVITACIÓN GENERADO --- */}
                 {generatedTokenUrl && (
                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
                         <p className="text-xs font-bold uppercase tracking-wider text-blue-800">Enlace de invitación generado (Cópialo para probar):</p>
@@ -127,12 +151,12 @@ export const InvitationsPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* FORMULARIO DE CREACIÓN: Inputs organizados en una cuadrícula responsiva */}
+                {/* --- SUBSECCIÓN: FORMULARIO DE NUEVA INVITACIÓN --- */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-bold text-slate-800 mb-4">Enviar Nueva Invitación</h2>
 
                     <form onSubmit={handleInviteSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Campo de Correo Electrónico */}
+                        {/* Campo Correo */}
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Correo</label>
                             <input
@@ -145,7 +169,7 @@ export const InvitationsPage: React.FC = () => {
                             />
                         </div>
 
-                        {/* Campo de ID de Compañía (UUID) */}
+                        {/* Campo Compañía ID */}
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Compañía ID</label>
                             <input
@@ -172,7 +196,7 @@ export const InvitationsPage: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Botón de envío con estado de carga interactivo */}
+                        {/* Botón Submit */}
                         <div className="flex items-end">
                             <button
                                 type="submit"
@@ -185,7 +209,7 @@ export const InvitationsPage: React.FC = () => {
                     </form>
                 </div>
 
-                {/* TABLA DE REGISTROS: Muestra el historial actual de invitaciones y opciones de gestión */}
+                {/* --- SUBSECCIÓN: TABLA DE HISTORIAL Y REGISTROS --- */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="p-6 border-b border-slate-100">
                         <h2 className="text-lg font-bold text-slate-800">Historial de Invitaciones</h2>
@@ -205,7 +229,6 @@ export const InvitationsPage: React.FC = () => {
                             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                                 {invitations.length > 0 ? (
                                     invitations.map((inv) => {
-                                        // Validación basada en la propiedad real del esquema (acceptedAt) y fecha de expiración
                                         const isAccepted = !!inv.acceptedAt;
                                         const isExpired = new Date() > new Date(inv.expiresAt);
 
@@ -234,7 +257,6 @@ export const InvitationsPage: React.FC = () => {
                                                     )}
                                                 </td>
                                                 <td className="p-4 text-right">
-                                                    {/* Se muestra el botón de revocar únicamente si la invitación no ha sido utilizada ni expirado */}
                                                     {!isAccepted && !isExpired && (
                                                         <button
                                                             onClick={() => handleRevoke(inv.id)}
@@ -257,6 +279,31 @@ export const InvitationsPage: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* --- SUBSECCIÓN: CONTROLES DE PAGINACIÓN --- */}
+                    {meta.totalPages > 1 && (
+                        <div className="p-4 border-t border-slate-100 flex justify-between items-center bg-slate-50">
+                            <span className="text-xs text-slate-500 font-medium">
+                                Página {meta.page} de {meta.totalPages} (Total: {meta.total} registros)
+                            </span>
+                            <div className="space-x-2">
+                                <button
+                                    disabled={meta.page <= 1}
+                                    onClick={() => setMeta(prev => ({ ...prev, page: prev.page - 1 }))}
+                                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition-colors"
+                                >
+                                    Anterior
+                                </button>
+                                <button
+                                    disabled={meta.page >= meta.totalPages}
+                                    onClick={() => setMeta(prev => ({ ...prev, page: prev.page + 1 }))}
+                                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition-colors"
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
             </div>

@@ -15,15 +15,27 @@ export interface Invitation {
     role: string;
     token: string;
     expiresAt: string;
-    isUsed: boolean;
+    acceptedAt?: string | null;
     createdAt: string;
+}
+
+export interface PaginationMeta {
+    totalItems: number;
+    itemsPerPage: number;
+    currentPage: number;
+    totalPages: number;
+}
+
+export interface PaginatedInvitationsResponse {
+    data: Invitation[];
+    meta: PaginationMeta;
 }
 
 export const invitationService = {
     /**
      * Envía una nueva invitación consumiendo el endpoint protegido del backend
      */
-    createInvitation: async (data: CreateInvitationDto): Promise<Invitation> => {
+    createInvitation: async (data: CreateInvitationDto): Promise<any> => {
         const token = localStorage.getItem('accessToken');
 
         const response = await axios.post(`${API_URL}/invitations`, data, {
@@ -36,12 +48,13 @@ export const invitationService = {
     },
 
     /**
-     * Obtiene la lista de invitaciones existentes para mostrarlas en la tabla
+     * Obtiene la lista paginada de invitaciones existentes para mostrarlas en la tabla
      */
-    getInvitations: async (): Promise<Invitation[]> => {
+    getInvitations: async (page: number = 1, limit: number = 10): Promise<PaginatedInvitationsResponse> => {
         const token = localStorage.getItem('accessToken');
 
         const response = await axios.get(`${API_URL}/invitations`, {
+            params: { page, limit },
             headers: {
                 Authorization: `Bearer ${token}`,
             },
