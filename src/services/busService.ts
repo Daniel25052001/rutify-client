@@ -35,16 +35,27 @@ export interface BusDto {
     status?: 'ACTIVE' | 'MAINTENANCE';
 }
 
+// Estructura para la respuesta paginada que viene de NestJS
+export interface PaginatedBusesResponse {
+    data: BusDto[];
+    meta: {
+        total: number;
+        page: number;
+        lastPage: number;
+        limit: number;
+    };
+}
+
 // ==========================================
 // SERVICIO DE GESTIÓN DE FLOTA (CLIENTE)
 // ==========================================
 export const busService = {
     /**
-     * Obtiene la lista completa de buses registrados para la compañía del usuario.
+     * Obtiene la lista paginada de buses con soporte para búsqueda.
      */
-    async getAllBuses(): Promise<BusDto[]> {
+    async getAllBuses(params?: { page?: number; limit?: number; search?: string }): Promise<PaginatedBusesResponse> {
         try {
-            const response = await api.get<BusDto[]>('/buses');
+            const response = await api.get<PaginatedBusesResponse>('/buses', { params });
             return response.data;
         } catch (error) {
             console.error('Error al obtener la flota de buses:', error);

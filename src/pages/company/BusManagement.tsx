@@ -3,38 +3,45 @@ import { busService, type BusDto } from '../../services/busService';
 
 /**
  * BusManagement: Vista administrativa conectada al backend de NestJS mediante Axios.
- * Gestiona el ciclo de vida de la flota con consultas en tiempo real.
+ * Gestiona el ciclo de vida de la flota con paginación y búsqueda en servidor.
  */
 export const BusManagement: React.FC = () => {
     // ==========================================
     // 1. DECLARACIÓN DE ESTADOS
     // ==========================================
-    const [buses, setBuses] = useState<BusDto[]>([]); // Almacena la lista de buses obtenida del backend
+    const [buses, setBuses] = useState<BusDto[]>([]); // Almacena la lista de buses paginada
     const [loading, setLoading] = useState<boolean>(true); // Controla el estado de carga inicial
     const [error, setError] = useState<string | null>(null); // Almacena mensajes de error si falla la API
 
+    // Estados para paginación y búsqueda
+    const [page, setPage] = useState<number>(1);
+    const [limit] = useState<number>(10);
+    const [totalPages, setTotalPages] = useState<number>(1);
+    const [search, setSearch] = useState<string>('');
+
     // Estados para controlar el modal de registro y edición
-    const [isModalOpen, setIsModalOpen] = useState(false); // Define si el modal está visible o oculto
-    const [editingBusId, setEditingBusId] = useState<string | null>(null); // ID del bus en edición (null si es creación nueva)
-    const [plate, setPlate] = useState(''); // Campo de entrada para la placa
-    const [capacity, setCapacity] = useState<number>(40); // Campo de entrada para la capacidad de pasajeros
-    const [status, setStatus] = useState<'ACTIVE' | 'MAINTENANCE'>('ACTIVE'); // Estado operativo del bus
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingBusId, setEditingBusId] = useState<string | null>(null);
+    const [plate, setPlate] = useState('');
+    const [capacity, setCapacity] = useState<number>(40);
+    const [status, setStatus] = useState<'ACTIVE' | 'MAINTENANCE'>('ACTIVE');
 
     // ==========================================
     // 2. EFECTOS Y PETICIONES A LA API (BACKEND)
     // ==========================================
 
-    // Carga inicial de la flota al montar el componente en la pantalla
+    // Carga la flota aplicando los parámetros de paginación y búsqueda
     useEffect(() => {
         fetchBuses();
-    }, []);
+    }, [page, search]);
 
-    // Función asíncrona para obtener todos los buses desde el servicio de NestJS
     const fetchBuses = async () => {
         try {
             setLoading(true);
-            const data = await busService.getAllBuses();
-            setBuses(data);
+            // Llamada al servicio pasando page, limit y search
+            const response = await busService.getAllBuses({ page, limit, search });
+            setBuses(response.data);
+            setTotalPages(response.meta.lastPage);
             setError(null);
         } catch (err) {
             setError('No se pudo conectar con el servidor para cargar la flota.');
@@ -47,7 +54,6 @@ export const BusManagement: React.FC = () => {
     // 3. MANEJADORES DE ACCIONES (UI Y EVENTOS)
     // ==========================================
 
-    // Prepara el formulario para registrar un vehículo nuevo (limpia campos)
     const handleOpenCreateModal = () => {
         setEditingBusId(null);
         setPlate('');
@@ -56,7 +62,6 @@ export const BusManagement: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    // Prepara el formulario cargando los datos del bus que el usuario desea editar
     const handleOpenEditModal = (bus: BusDto) => {
         setEditingBusId(bus.id || null);
         setPlate(bus.plate);
@@ -65,14 +70,12 @@ export const BusManagement: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    // Maneja el envío del formulario para crear un bus o actualizar uno existente
     const handleSaveBus = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!plate) return;
 
         try {
             if (editingBusId) {
-                // Lógica de actualización si existe un ID en edición
                 const updatedBus = await busService.updateBus(editingBusId, {
                     plate: plate.toUpperCase(),
                     capacity: Number(capacity),
@@ -80,16 +83,15 @@ export const BusManagement: React.FC = () => {
                 });
                 setBuses(buses.map((b) => (b.id === editingBusId ? updatedBus : b)));
             } else {
-                // Lógica de creación si no hay un ID previo
-                const createdBus = await busService.createBus({
+                await busService.createBus({
                     plate: plate.toUpperCase(),
                     capacity: Number(capacity),
                     status,
                 });
-                setBuses([createdBus, ...buses]);
+                // Recargamos la lista actual para reflejar la paginación correctamente
+                fetchBuses();
             }
 
-            // Cierra el modal y limpia el estado de edición
             setIsModalOpen(false);
             setEditingBusId(null);
         } catch (err) {
@@ -97,7 +99,6 @@ export const BusManagement: React.FC = () => {
         }
     };
 
-    // Permite alternar rápidamente el estado de un bus (Operativo <-> En Mantenimiento) desde la tabla
     const handleToggleStatus = async (bus: BusDto) => {
         if (!bus.id) return;
         const newStatus = bus.status === 'ACTIVE' ? 'MAINTENANCE' : 'ACTIVE';
@@ -120,7 +121,7 @@ export const BusManagement: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <div>
                     <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">Gestión de Flota (Buses)</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">Control vehicular centralizado y en tiempo real.</p>
+                    <p className="text-sm text-gray-500 mt-0.5">Control vehicular centralizado y en tiempo real con soporte escalable.</p>
                 </div>
                 <button
                     onClick={handleOpenCreateModal}
@@ -128,6 +129,20 @@ export const BusManagement: React.FC = () => {
                 >
                     <span className="mr-2 text-base">+</span> Registrar Nuevo Bus
                 </button>
+            </div>
+
+            {/* Barra de Búsqueda por Placa */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center">
+                <input
+                    type="text"
+                    placeholder="Buscar vehículo por placa..."
+                    value={search}
+                    onChange={(e) => {
+                        setSearch(e.target.value.toUpperCase());
+                        setPage(1); // Reiniciar a la página 1 al buscar
+                    }}
+                    className="w-full sm:max-w-xs px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-50/50 uppercase"
+                />
             </div>
 
             {/* Manejo condicional de estados de carga y errores de conexión */}
@@ -144,7 +159,7 @@ export const BusManagement: React.FC = () => {
                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Unidades Registradas</span>
                         <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
-                            Total: {buses.length} vehículos
+                            Página {page} de {totalPages || 1}
                         </span>
                     </div>
 
@@ -162,7 +177,7 @@ export const BusManagement: React.FC = () => {
                                 {buses.length === 0 ? (
                                     <tr>
                                         <td colSpan={4} className="py-12 text-center text-gray-400 font-medium">
-                                            No hay buses registrados en la base de datos.
+                                            No se encontraron buses registrados con los filtros actuales.
                                         </td>
                                     </tr>
                                 ) : (
@@ -171,7 +186,6 @@ export const BusManagement: React.FC = () => {
                                             <td className="py-4 px-6 font-bold text-gray-900">{bus.plate}</td>
                                             <td className="py-4 px-6 text-gray-600">{bus.capacity} pasajeros</td>
                                             <td className="py-4 px-6">
-                                                {/* Botón interactivo para alternar el estado del bus directamente */}
                                                 <button
                                                     onClick={() => handleToggleStatus(bus)}
                                                     title="Clic para cambiar estado"
@@ -201,6 +215,27 @@ export const BusManagement: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Controles de Paginación Inferior */}
+                    <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
+                        <button
+                            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={page === 1}
+                            className="px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            ← Anterior
+                        </button>
+                        <span className="text-xs font-semibold text-gray-500">
+                            Página <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
+                        </span>
+                        <button
+                            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                            disabled={page >= totalPages}
+                            className="px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            Siguiente →
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -220,7 +255,6 @@ export const BusManagement: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Formulario unificado de captura de datos */}
                         <form onSubmit={handleSaveBus} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Placa</label>
