@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { busService, type BusDto } from '../../services/busService';
+import { MaintenanceModal } from '../../components/company/MaintenanceModal';
 
 /**
  * BusManagement: Vista administrativa conectada al backend de NestJS mediante Axios.
@@ -26,6 +27,9 @@ export const BusManagement: React.FC = () => {
     const [capacity, setCapacity] = useState<number>(40);
     const [status, setStatus] = useState<'ACTIVE' | 'MAINTENANCE'>('ACTIVE');
 
+    // ESTADO NUEVO: Controla qué bus está abierto en el modal de mantenimiento/taller
+    const [selectedBus, setSelectedBus] = useState<{ id: string; plate: string } | null>(null);
+
     // ==========================================
     // 2. EFECTOS Y PETICIONES A LA API (BACKEND)
     // ==========================================
@@ -38,7 +42,6 @@ export const BusManagement: React.FC = () => {
     const fetchBuses = async () => {
         try {
             setLoading(true);
-            // Llamada al servicio pasando page, limit y search
             const response = await busService.getAllBuses({ page, limit, search });
             setBuses(response.data);
             setTotalPages(response.meta.lastPage);
@@ -88,7 +91,6 @@ export const BusManagement: React.FC = () => {
                     capacity: Number(capacity),
                     status,
                 });
-                // Recargamos la lista actual para reflejar la paginación correctamente
                 fetchBuses();
             }
 
@@ -139,7 +141,7 @@ export const BusManagement: React.FC = () => {
                     value={search}
                     onChange={(e) => {
                         setSearch(e.target.value.toUpperCase());
-                        setPage(1); // Reiniciar a la página 1 al buscar
+                        setPage(1);
                     }}
                     className="w-full sm:max-w-xs px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-50/50 uppercase"
                 />
@@ -190,8 +192,8 @@ export const BusManagement: React.FC = () => {
                                                     onClick={() => handleToggleStatus(bus)}
                                                     title="Clic para cambiar estado"
                                                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-transform active:scale-95 cursor-pointer ${bus.status === 'ACTIVE'
-                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100'
-                                                            : 'bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100'
+                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100'
+                                                        : 'bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100'
                                                         }`}
                                                 >
                                                     <span
@@ -202,6 +204,15 @@ export const BusManagement: React.FC = () => {
                                                 </button>
                                             </td>
                                             <td className="py-4 px-6 text-right space-x-2">
+                                                {/* NUEVO: Botón de Taller integrado por cada fila de bus */}
+                                                {bus.id && (
+                                                    <button
+                                                        onClick={() => setSelectedBus({ id: bus.id!, plate: bus.plate })}
+                                                        className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                    >
+                                                        🛠️ Taller
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => handleOpenEditModal(bus)}
                                                     className="text-purple-600 hover:text-purple-800 font-semibold text-xs px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
@@ -311,6 +322,15 @@ export const BusManagement: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* NUEVO: Renderizado condicional del Modal de Mantenimiento / Taller */}
+            {selectedBus && (
+                <MaintenanceModal
+                    busId={selectedBus.id}
+                    busPlate={selectedBus.plate}
+                    onClose={() => setSelectedBus(null)}
+                />
             )}
         </div>
     );
